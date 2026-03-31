@@ -28,15 +28,15 @@ app.use('/api/v1/bookings', bookingRoutes);
 // Single Server Unified Production Mode
 const path = require('path');
 if (process.env.NODE_ENV === 'production') {
-  // Service the frontend build explicitly locally bundled
-  app.use(express.static(path.join(__dirname, 'public')));
+  // Service the frontend build explicitly from the compiled client workspace
+  app.use(express.static(path.join(__dirname, '../client/dist')));
   
   // React Router SPA Catch-All (Express 5 compatible)
   app.use((req, res, next) => {
     if (req.originalUrl.startsWith('/api')) {
-      return next(); // Do not swallow 404 API calls
+      return next(); // Do not swallow API calls
     }
-    res.sendFile(path.resolve(__dirname, 'public', 'index.html'));
+    res.sendFile(path.resolve(__dirname, '../client/dist', 'index.html'));
   });
 } else {
   // Health check route for pure backend testing
