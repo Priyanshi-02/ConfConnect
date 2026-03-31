@@ -14,7 +14,10 @@ const app = express();
 connectDB();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: "https://conf-connect-4num.vercel.app",
+  credentials: true
+}));
 app.use(express.json());
 
 // Routes
