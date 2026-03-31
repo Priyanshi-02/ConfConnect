@@ -1,0 +1,9 @@
+{
+  "name": "confconnect-production",
+  "version": "1.0.0",
+  "description": "Root configuration for deploying ConfConnect seamlessly on platforms like Render.",
+  "scripts": {
+    "build": "npm install --prefix server && npm install --prefix client && npm run build --prefix client",
+    "start": "npm start --prefix server"
+  }
+}

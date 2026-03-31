@@ -25,10 +25,22 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/rooms', roomRoutes);
 app.use('/api/v1/bookings', bookingRoutes);
 
-// Health check route
-app.get('/', (req, res) => {
-  res.send('ConfConnect API is running...');
-});
+// Single Server Unified Production Mode
+const path = require('path');
+if (process.env.NODE_ENV === 'production') {
+  // Service the frontend build explicitly locally bundled
+  app.use(express.static(path.join(__dirname, 'public')));
+  
+  // React Router SPA Catch-All
+  app.get('*', (req, res) => {
+    res.sendFile(path.resolve(__dirname, 'public', 'index.html'));
+  });
+} else {
+  // Health check route for pure backend testing
+  app.get('/', (req, res) => {
+    res.send('ConfConnect API is running in Development Mode...');
+  });
+}
 
 const PORT = process.env.PORT || 5000;
 

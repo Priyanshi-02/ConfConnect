@@ -1,7 +1,8 @@
 import axios from 'axios';
 
+// Dynamically target the backend API based on the hosting environment
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '/api/v1' : 'http://localhost:5001/api/v1'),
 });
 
 // Axios interceptor to append authorization header
