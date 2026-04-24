@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import api from '../api/axios';
 import { X, Calendar, Clock, Users, FileText } from 'lucide-react';
@@ -14,15 +14,78 @@ const BookingModal = ({ room, setOpen, refresh, notifications, setNotifications 
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [roomAvailability, setRoomAvailability] = useState([]);
+
+  useEffect(() => {
+    const fetchAvailability = async () => {
+      if (!date || !room?._id) return;
+      try {
+        const { data } = await api.get(`/bookings/availability/${room._id}?date=${date}`);
+        setRoomAvailability(data);
+      } catch (err) {
+        console.error("Failed to fetch availability", err);
+      }
+    };
+    fetchAvailability();
+  }, [date, room?._id]);
+
+  useEffect(() => {
+    if (!startTime) {
+      setError(null);
+      return;
+    }
+
+    const timeToMins = (timeStr) => {
+      if (!timeStr) return 0;
+      const [h, m] = timeStr.split(':').map(Number);
+      return h * 60 + m;
+    };
+
+    const startMins = timeToMins(startTime);
+    const endMins = timeToMins(endTime);
+
+    // 1. Check for overlapping existing bookings (with 1 hr cleaning buffer)
+    const hasOverlap = roomAvailability.some(b => {
+      const bStart = b.startMins;
+      const bBlockedEnd = b.blockedEndMins; 
+      
+      // If end time is not set, assume minimum duration of 1 hour + 1 hour buffer
+      const newBlockedEndMins = endMins ? endMins + 60 : startMins + 120;
+      
+      return (startMins < bBlockedEnd && newBlockedEndMins > bStart);
+    });
+
+    if (hasOverlap) {
+      setError('This time slot overlaps with an existing booking or required cleaning interval.');
+      return;
+    }
+
+    // 2. Minimum Duration constraint
+    if (startTime && endTime) {
+      if (endMins - startMins < 60) {
+        setError('Meeting must be of at least 1 hour duration.');
+        return;
+      }
+      
+      // Basic Sanity
+      if (startMins >= endMins) {
+        setError('End time must be after start time.');
+        return;
+      }
+    }
+
+    setError(null);
+  }, [startTime, endTime, roomAvailability]);
 
   const handleBooking = async (e) => {
     e.preventDefault();
+    if (error) return; // Prevent submission if real-time validation failed
+
     setLoading(true);
     setError(null);
 
-    // Basic validation
-    if (startTime >= endTime) {
-      setError('End time must be after start time.');
+    // Basic validation handled by useEffect, double check before API call
+    if (error) {
       setLoading(false);
       return;
     }

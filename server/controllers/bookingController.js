@@ -24,8 +24,18 @@ const createBooking = async (req, res) => {
   try {
     const bookingDate = new Date(date);
 
-    // Check for overlaps strictly
-    // overlapping bookings: (startTime < existingEndTime && endTime > existingStartTime)
+    // Parse time strings "HH:mm" to calculate duration
+    const [startH, startM] = startTime.split(':').map(Number);
+    const [endH, endM] = endTime.split(':').map(Number);
+    const startMins = startH * 60 + startM;
+    const endMins = endH * 60 + endM;
+
+    // Reject if duration is less than 1 hour (60 minutes)
+    if (endMins - startMins < 60) {
+      return res.status(400).json({ message: 'Meeting must be of at least 1 hour duration.' });
+    }
+
+    // Check for overlaps strictly with 1 hr cleaning interval
     const existingBookings = await Booking.find({
       room,
       date: bookingDate,
@@ -33,11 +43,20 @@ const createBooking = async (req, res) => {
     });
 
     const hasOverlap = existingBookings.some(b => {
-      return (startTime < b.endTime && endTime > b.startTime);
+      const [bStartH, bStartM] = b.startTime.split(':').map(Number);
+      const [bEndH, bEndM] = b.endTime.split(':').map(Number);
+      const bStartMins = bStartH * 60 + bStartM;
+      const bEndMins = bEndH * 60 + bEndM;
+      
+      const bBlockedEndMins = bEndMins + 60;   // existing meeting + 1 hr cleaning
+      const newBlockedEndMins = endMins + 60;  // new meeting + 1 hr cleaning
+
+      // Overlap if new start is before existing blocked end AND new blocked end is after existing start
+      return (startMins < bBlockedEndMins && newBlockedEndMins > bStartMins);
     });
 
     if (hasOverlap) {
-      return res.status(400).json({ message: 'Room is already booked for this time slot.' });
+      return res.status(400).json({ message: 'Room is already booked or requires cleaning during this time slot.' });
     }
 
     // Fetch room details for validation and links
@@ -93,4 +112,43 @@ const createBooking = async (req, res) => {
   }
 };
 
-module.exports = { getBookings, createBooking };
+// @desc    Get room availability for a specific date
+// @route   GET /api/v1/bookings/availability/:roomId
+// @access  Protected
+const getRoomAvailability = async (req, res) => {
+  const { roomId } = req.params;
+  const { date } = req.query;
+
+  try {
+    if (!date) {
+      return res.status(400).json({ message: 'Date is required' });
+    }
+
+    const bookingDate = new Date(date);
+    const existingBookings = await Booking.find({
+      room: roomId,
+      date: bookingDate,
+      status: 'confirmed'
+    });
+
+    const bookedSlots = existingBookings.map(b => {
+      const [startH, startM] = b.startTime.split(':').map(Number);
+      const [endH, endM] = b.endTime.split(':').map(Number);
+      const startMins = startH * 60 + startM;
+      const endMins = endH * 60 + endM;
+      return { 
+        startTime: b.startTime, 
+        endTime: b.endTime, 
+        startMins, 
+        endMins,
+        blockedEndMins: endMins + 60 // 1 hr cleaning buffer
+      };
+    });
+
+    res.json(bookedSlots);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { getBookings, createBooking, getRoomAvailability };
